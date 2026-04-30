@@ -7,15 +7,35 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp, updateDoc, collection, query, where, getDocs, deleteDoc, setLogLevel } from 'firebase/firestore';
 import fs from 'fs';
 import cors from 'cors';
-import firebaseConfig from './firebase-applet-config.json';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+let firebaseConfig: any = {};
+try {
+  if (fs.existsSync('./firebase-applet-config.json')) {
+    const rawData = fs.readFileSync('./firebase-applet-config.json', 'utf8');
+    firebaseConfig = JSON.parse(rawData);
+  }
+} catch (e) {}
+
+const fbConfig = {
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId,
+  appId: process.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId,
+  apiKey: process.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey,
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
+  firestoreDatabaseId: process.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId,
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
+};
 
 setLogLevel('silent');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+const firebaseApp = initializeApp(fbConfig);
+const db = getFirestore(firebaseApp, fbConfig.firestoreDatabaseId);
 
 
 app.use(express.json());
@@ -32,7 +52,7 @@ interface DeviceState {
   totalSent: number;
 }
 
-const FIREBASE_RTDB_URL = "https://abhi-sms-na-default-rtdb.firebaseio.com";
+const FIREBASE_RTDB_URL = process.env.FIREBASE_RTDB_URL || "https://abhi-sms-na-default-rtdb.firebaseio.com";
 
 const devices = new Map<string, DeviceState>();
 
