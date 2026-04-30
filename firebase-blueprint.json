@@ -1,0 +1,23 @@
+{
+  "entities": {
+    "WhatsAppSession": {
+      "title": "WhatsApp Session",
+      "description": "Stores state of a WhatsApp pairing session",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Current status"
+        },
+        "sessionId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "whatsapp_sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/WhatsAppSession" },
+      "description": "WhatsApp Sessions"
+    }
+  }
+}

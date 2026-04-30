@@ -1,0 +1,6 @@
+{
+  "name": "WhatsApp Connector",
+  "description": "Connect WhatsApp using pairing code or QR code and save session status to Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
