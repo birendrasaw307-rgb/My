@@ -8,6 +8,7 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [view, setView] = useState('loading'); // loading, unauthorized, main, success
   const [userDevices, setUserDevices] = useState<any[]>([]);
+  const [globalStats, setGlobalStats] = useState({ whatsapp_earnings: 0, total_online_seconds: 0 });
   
   const pollRef = useRef<any>(null);
   const checkLinkRef = useRef<any>(null);
@@ -44,7 +45,8 @@ export default function App() {
         const res = await fetch(`/api/user-devices?userMob=${uMob}`);
         if(res.ok) {
            const data = await res.json();
-           setUserDevices(data);
+           setUserDevices(data.devices || []);
+           if (data.stats) setGlobalStats(data.stats);
         }
       } catch (e) {}
     };
@@ -58,16 +60,19 @@ export default function App() {
       const res = await fetch(`/api/is-linked?phone=${p}`);
       const data = await res.json();
       if (data.linked) {
-        if (checkLinkRef.current) clearInterval(checkLinkRef.current);
-        setTimeLeft(0);
-        setPhone('');
-        setPairingCode('');
-        setStatusMsg({ text: '', type: '' });
-        setView('success');
-        setTimeout(() => {
-          setView('main');
-          startDashboardPoll(userMob);
-        }, 2500);
+        if (checkLinkRef.current) {
+          clearInterval(checkLinkRef.current);
+          checkLinkRef.current = null;
+          setTimeLeft(0);
+          setPhone('');
+          setPairingCode('');
+          setStatusMsg({ text: '', type: '' });
+          setView('success');
+          setTimeout(() => {
+            setView('main');
+            startDashboardPoll(userMob);
+          }, 2500);
+        }
       }
     } catch (e) {}
   };
@@ -115,7 +120,10 @@ export default function App() {
       const timer = setInterval(() => setTimeLeft(l => l - 1), 1000);
       return () => clearInterval(timer);
     } else if (timeLeft === 0 && pairingCode) {
-      if (checkLinkRef.current) clearInterval(checkLinkRef.current);
+      if (checkLinkRef.current) {
+        clearInterval(checkLinkRef.current);
+        checkLinkRef.current = null;
+      }
       // Auto-discard pairing on backend when time expires
       fetch(`/api/discard_pairing?phone=91${phone.trim()}`).then(() => {
          startDashboardPoll(userMob);
@@ -190,6 +198,23 @@ export default function App() {
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', width: '100%' }}>
         <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
+          {/* OVERALL STATS BOX */}
+          <div className="card" style={{ padding: '20px', background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)', color: 'white' }}>
+             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '24px' }}>📊</span> My WhatsApp Status
+             </h2>
+             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ background: 'rgba(255,255,255,0.15)', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
+                   <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.9, marginBottom: '8px' }}>Total Earned</div>
+                   <div style={{ fontSize: '24px', fontWeight: 'bold' }}>₹{globalStats.whatsapp_earnings.toFixed(2)}</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.15)', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
+                   <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.9, marginBottom: '8px' }}>Total Time</div>
+                   <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatTime(globalStats.total_online_seconds)}</div>
+                </div>
+             </div>
+          </div>
+
           {/* TOP BOX: ADD WHATSAPP */}
         <div className="card" style={{ padding: '24px' }}>
             <div className="header" style={{ marginBottom: '8px', textAlign: 'center' }}>🔗 Connect WhatsApp</div>

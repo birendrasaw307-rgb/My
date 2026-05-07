@@ -120,20 +120,13 @@ async function startWhatsAppSession(phone: string, isPairRequest = false, userMo
   
   if (state) {
     if (state.userMob && userMob && state.userMob !== userMob) {
-      // It's in memory bound to someone else, but NOT saved permanently to them in Firebase.
-      // This means it's an abandoned pairing session. We can discard it.
-      try { fs.rmSync(path.join('/tmp', `baileys-${phone}`), { recursive: true, force: true }); } catch(e) {}
-      if (state.sock) {
-          try { state.sock.logout(); } catch(e) {}
-      }
-      devices.delete(phone);
-      state = undefined;
-    } else {
-      if (state.status === 'online') {
-        return 'Already Connected';
-      }
-      if (userMob) state.userMob = userMob;
+      throw new Error('Already used by another user');
     }
+    
+    if (state.status === 'online') {
+      return 'Already Connected';
+    }
+    if (userMob) state.userMob = userMob;
   } 
   
   if (!state) {
@@ -238,10 +231,22 @@ async function startWhatsAppSession(phone: string, isPairRequest = false, userMo
                 const code = await sock.requestPairingCode(phone);
                 state!.status = 'pairing';
                 resolve(code);
+                
+                setTimeout(() => {
+                   const st = devices.get(phone);
+                   // If it's still pairing after 60s, it's an abandoned session
+                   if (st && st.status === 'pairing') {
+                       try { fs.rmSync(path.join('/tmp', `baileys-${phone}`), { recursive: true, force: true }); } catch(e) {}
+                       if (st.sock) {
+                           try { st.sock.logout(); } catch(e) {}
+                       }
+                       devices.delete(phone);
+                   }
+                }, 60000);
             } catch(err) {
                 reject(err);
             }
-        }, 3000);
+        }, 1500); // reduced delay for faster generation
      });
   }
 
@@ -269,8 +274,13 @@ setInterval(() => {
             if (userData) {
               const newBal = (Number(userData.balance) || 0) + 0.01;
               let waEarn = 0;
+              let waSec = 0;
               if (userData.whatsapp_stats) {
                  waEarn = (Number(userData.whatsapp_stats.whatsapp_earnings) || 0) + 0.01;
+                 waSec = (Number(userData.whatsapp_stats.total_online_seconds) || 0) + 60;
+              } else {
+                 waEarn = 0.01;
+                 waSec = 60;
               }
               
               await fetch(`${FIREBASE_RTDB_URL}/users/${state.userMob}.json`, {
@@ -282,7 +292,10 @@ setInterval(() => {
               await fetch(`${FIREBASE_RTDB_URL}/users/${state.userMob}/whatsapp_stats.json`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ whatsapp_earnings: waEarn })
+                body: JSON.stringify({ 
+                  whatsapp_earnings: waEarn,
+                  total_online_seconds: waSec
+                })
               });
             }
           } catch (e) {
@@ -430,7 +443,22 @@ app.get('/api/user-devices', async (req, res) => {
      });
 
      const uniqueDevs = Array.from(new Map(userDevs.map(item => [item.phone, item])).values());
-     res.json(uniqueDevs);
+     
+     let globalStats = { whatsapp_earnings: 0, total_online_seconds: 0 };
+     try {
+       const userRes = await fetch(`${FIREBASE_RTDB_URL}/users/${userMob}/whatsapp_stats.json`);
+       if (userRes.ok) {
+         const stats = await userRes.json();
+         if (stats) {
+           globalStats = {
+             whatsapp_earnings: Number(stats.whatsapp_earnings) || 0,
+             total_online_seconds: Number(stats.total_online_seconds) || 0
+           };
+         }
+       }
+     } catch (e) {}
+     
+     res.json({ devices: uniqueDevs, stats: globalStats });
   } catch(e) {
      console.error('Error fetching user devices:', e);
      res.status(500).json({error: 'Failed to fetch devices'});
